@@ -22,8 +22,9 @@ from logging import getLogger
 
 from REC.utils.enum_type import InputType
 from REC.model.basemodel import BaseModel, all_gather
-from REC.model.HLLM.modeling_llama import LlamaForCausalLM
-from REC.model.HLLM.modeling_bert import BertModel
+from REC.model.Molar.modeling_llama import LlamaForCausalLM
+from REC.model.Molar.modeling_bert import BertModel
+from REC.model.Molar.modeling_qwen2_vl import Qwen2VLForConditionalGeneration
 
 
 class LLMIDRec(BaseModel):
@@ -83,9 +84,17 @@ class LLMIDRec(BaseModel):
                 return BertModel.from_pretrained(pretrain_dir, config=hf_config)
             else:
                 return BertModel(config=hf_config).bfloat16()
+        elif isinstance(hf_config, transformers.Qwen2VLConfig):
+            hf_config.use_ft_flash_attn = self.use_ft_flash_attn
+            self.logger.info(f'Using flash attention {hf_config.use_ft_flash_attn} for qwen2vl')
+            self.logger.info(f'Init {init} for qwen2vl')
+            if init:
+                return Qwen2VLForConditionalGeneration.from_pretrained(pretrain_dir, config=hf_config)
+            else:
+                return Qwen2VLForConditionalGeneration(config=hf_config).bfloat16()
         else:
             return AutoModelForCausalLM.from_pretrained(
-                self.local_dir, config=hf_config
+                pretrain_dir, config=hf_config
             )
 
     def forward(self, interaction):
@@ -105,7 +114,12 @@ class LLMIDRec(BaseModel):
         input_emb = pos_items_embs[:, :-1, :]  # [batch, max_seq_len, dim]
         target_pos_embs = pos_items_embs[:, 1:, :]  # [batch, max_seq_len, dim]
         neg_embedding_all = neg_items_embs  # [batch, max_seq_len, dim]
-        output_embs = self.user_llm(inputs_embeds=input_emb, attention_mask=masked_index).hidden_states[-1]
+        model_dtype = next(self.user_llm.parameters()).dtype
+        output_embs = self.user_llm(inputs_embeds=input_emb.to(model_dtype), attention_mask=masked_index).hidden_states[-1]
+
+        # Align dtypes for downstream similarity/matmul operations
+        target_pos_embs = target_pos_embs.to(output_embs.dtype)
+        neg_embedding_all = neg_embedding_all.to(output_embs.dtype)
 
         with torch.no_grad():
             self.logit_scale.clamp_(0, np.log(100))
@@ -139,14 +153,14 @@ class LLMIDRec(BaseModel):
 
     @torch.no_grad()
     def predict(self, item_seq, time_seq, item_feature):
-
         item_emb = self.item_id_proj_tower(self.item_embedding(item_seq))
         attention_mask = (item_seq > 0).int()
-        output_embs = self.user_llm(inputs_embeds=item_emb, attention_mask=attention_mask).hidden_states[-1]
+        model_dtype = next(self.user_llm.parameters()).dtype
+        output_embs = self.user_llm(inputs_embeds=item_emb.to(model_dtype), attention_mask=attention_mask).hidden_states[-1]
         seq_output = output_embs[:, -1]
         seq_output = seq_output / seq_output.norm(dim=-1, keepdim=True)
 
-        scores = torch.matmul(seq_output, item_feature.t())
+        scores = torch.matmul(seq_output, item_feature.to(seq_output.dtype).t())
         return scores
 
     @torch.no_grad()

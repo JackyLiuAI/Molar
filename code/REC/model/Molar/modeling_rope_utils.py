@@ -349,6 +349,8 @@ ROPE_INIT_FUNCTIONS = {
     "yarn": _compute_yarn_parameters,
     "longrope": _compute_longrope_parameters,
     "llama3": _compute_llama3_parameters,
+    # BC: some configs may still set rope type to 'mrope'; treat it as default
+    "mrope": _compute_default_rope_parameters,
 }
 
 

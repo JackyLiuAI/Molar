@@ -1,0 +1,10 @@
+/dataset
+.vscode
+/models
+/experiments
+# 忽略所有 Python 编译缓存文件
+**/__pycache__/
+
+# 忽略日志文件
+**/*.log
+**/*.pyc

@@ -23,11 +23,11 @@ from logging import getLogger
 from typing import Optional
 from REC.utils.enum_type import InputType
 from REC.model.basemodel import BaseModel, all_gather
-from REC.model.HLLM.modeling_llama import LlamaForCausalLM
-from REC.model.HLLM.modeling_mistral import MistralForCausalLM
-from REC.model.HLLM.modeling_bert import BertModel
-from REC.model.HLLM.baichuan.modeling_baichuan import BaichuanForCausalLM
-from REC.model.HLLM.modeling_qwen2_vl import Qwen2VLForConditionalGeneration
+from REC.model.Molar.modeling_llama import LlamaForCausalLM
+from REC.model.Molar.modeling_mistral import MistralForCausalLM
+from REC.model.Molar.modeling_bert import BertModel
+from REC.model.Molar.baichuan.modeling_baichuan import BaichuanForCausalLM
+from REC.model.Molar.modeling_qwen2_vl import Qwen2VLForConditionalGeneration
 
 
 class HLLM_V(BaseModel):
@@ -128,7 +128,7 @@ class HLLM_V(BaseModel):
                 return Qwen2VLForConditionalGeneration(config=hf_config).cuda()
         else:
             return AutoModelForCausalLM.from_pretrained(
-                self.local_dir, config=hf_config
+                pretrain_dir, config=hf_config
             )
 
 

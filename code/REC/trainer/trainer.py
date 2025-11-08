@@ -330,7 +330,8 @@ class Trainer(object):
                     self.logger.info(train_loss_output)
                 if self.rank == 0:
                     self._add_train_loss_to_tensorboard(epoch_idx, train_loss)
-                self.wandblogger.log_metrics({'epoch': epoch_idx, 'train_loss': train_loss, 'train_step': epoch_idx}, head='train')
+                if self.config.get('log_wandb', False):
+                    self.wandblogger.log_metrics({'epoch': epoch_idx, 'train_loss': train_loss, 'train_step': epoch_idx}, head='train')
 
             if self.eval_step <= 0 or not valid_data:
                 if saved:
@@ -358,10 +359,11 @@ class Trainer(object):
                     self.tensorboard.add_scalar('Vaild_score', valid_score, epoch_idx)
                     for name, value in valid_result.items():
                         self.tensorboard.add_scalar(name.replace('@', '_'), value, epoch_idx)
-                self.wandblogger.log_metrics({**valid_result, 'valid_step': valid_step}, head='valid')
+                if self.config.get('log_wandb', False):
+                    self.wandblogger.log_metrics({**valid_result, 'valid_step': valid_step}, head='valid')
 
                 # 只在主进程中记录 wandb
-                if self.rank == 0:
+                if self.rank == 0 and self.config.get('log_wandb', False):
                     wandb.log({
                         "epoch": epoch_idx,
                         "valid_score": valid_score,
@@ -387,10 +389,11 @@ class Trainer(object):
 
         # 在 fit 方法的末尾
         # 记录最佳验证分数和结果, 用 best_valid关键字
-        wandb.log({
-            "best_valid_score": self.best_valid_score,
-            "best_valid": self.best_valid_result
-        })
+        if self.rank == 0 and self.config.get('log_wandb', False):
+            wandb.log({
+                "best_valid_score": self.best_valid_score,
+                "best_valid": self.best_valid_result
+            })
 
         return self.best_valid_score, self.best_valid_result
 
@@ -502,7 +505,8 @@ class Trainer(object):
             for k, v in result.items():
                 result_cpu = self.distributed_concat(torch.tensor([v]).to(self.device), num_total_examples).cpu()
                 result[k] = round(result_cpu.item(), metric_decimal_place)
-            self.wandblogger.log_eval_metrics(result, head='eval')
+            if self.config.get('log_wandb', False):
+                self.wandblogger.log_eval_metrics(result, head='eval')
 
             return result
 
