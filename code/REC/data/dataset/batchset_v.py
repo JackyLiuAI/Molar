@@ -65,13 +65,12 @@ class BatchTextDataset(Dataset):
                     if value and str(value) != 'nan':
                         text_str += f"\n{key}: {value}"
 
-                # 使用dataset/cover/目录下的图片
                 if len(item_i):
-                    item_i['img'] = os.path.join("/home/yanruiran/workspace/lyc/HLLM/information", self.config['dataset'], f"{item}.jpg")
-                    # 如果图片不存在, 则不使用图片
-                    if not os.path.exists(item_i['img']):
+                    img_path = os.path.join("/DATA/home/ljq/Projects/Molar/dataset/", self.config['dataset'], f"{item}.jpg")
+                    if os.path.exists(img_path):
+                        item_i['img'] = img_path
+                    else:
                         item_i['img'] = None
-                        #logger.info(f"{item_i['img']} not exists")
                 if item_i['img']:
                     messages = [
                         {

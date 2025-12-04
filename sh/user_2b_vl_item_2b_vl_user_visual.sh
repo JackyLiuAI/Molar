@@ -2,7 +2,7 @@
 exp=vision_28_28_200_old_old_prompt
 #batch_size 16(image 28,56) ->8 (image 84)->4->2->1 #max_item_length 200 -> 135
 cd code && python3 main.py \
---config_file overall/ID.yaml IDNet/llama_id.yaml \
+--config_file overall/LLM_deepspeed.yaml IDNet/llama_id.yaml \
 --loss nce \
 --epochs 200 \
 --dataset Pixel50K \

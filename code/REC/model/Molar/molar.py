@@ -165,6 +165,19 @@ class HLLM_V(BaseModel):
         pixel_values:Optional[torch.tensor] = None,
         image_grid_thw:Optional[torch.tensor] = None,
     ):
+        # Ensure all inputs are on the same device as the LLM
+        device = getattr(llm, 'device', None)
+        if device is None:
+            device = input_ids.device
+        input_ids = input_ids.to(device)
+        position_ids = position_ids.to(device)
+        cu_input_lens = cu_input_lens.to(device)
+        if emb_tokens is not None:
+            emb_tokens = emb_tokens.to(device)
+        if pixel_values is not None:
+            pixel_values = pixel_values.to(device)
+        if image_grid_thw is not None:
+            image_grid_thw = image_grid_thw.to(device)
         # inputs_embeds = llm.get_input_embeddings()(input_ids)
         # emb_pos = cu_input_lens.cumsum(dim=0, dtype=torch.int32)
         # if emb_token_n > 0: #这个放到qwen2 forward里
@@ -190,7 +203,7 @@ class HLLM_V(BaseModel):
         #         #image_grid_thw=image_grid_thw.unsqueeze(0),
         #         #image_grid_thw=image_grid_thw
         #     )
-        if pixel_values.shape[0] == 0: #纯文本，不用image
+        if pixel_values is None or pixel_values.shape[0] == 0: #纯文本，不用image
             inputs_embeds = llm.get_input_embeddings()(input_ids)
             if emb_token_n > 0: #这个放到qwen2 forward里
                 inputs_embeds[emb_pos - 1] = emb_tokens 
@@ -276,7 +289,16 @@ class HLLM_V(BaseModel):
     def predict(self, item_seq, time_seq, item_feature):
         attention_mask = (item_seq > 0).int()
 
-        #转化为user_llm的 dtype
+        # Ensure item_feature is on the same device as the model/user_llm inputs
+        if hasattr(self.user_llm, 'device'):
+            model_device = self.user_llm.device
+        else:
+            # Fallback: infer from item_seq tensor
+            model_device = item_seq.device
+        if item_feature.device != model_device:
+            item_feature = item_feature.to(model_device)
+
+        # 转化为 user_llm 的 dtype
         pos_embedding = item_feature[item_seq]
 
         user_embedding = self.user_llm(inputs_embeds=pos_embedding, attention_mask=attention_mask).hidden_states[-1]

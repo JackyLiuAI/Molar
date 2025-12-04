@@ -246,19 +246,21 @@ class Trainer(object):
         self.tensorboard.add_hparams(hparam_dict, {'hparam/best_valid_result': best_valid_result})
 
     def to_device(self, data):
+        """Safely move nested data structures to the configured device.
+        Supports torch.Tensor, dict, list, tuple, and leaves non-tensor values unchanged.
+        """
         device = self.device
-        if isinstance(data, tuple) or isinstance(data, list):
-            tdata = ()
-            for d in data:
-                d = d.to(device)
-                tdata += (d,)
-            return tdata
-        elif isinstance(data, dict):
-            for k, v in data.items():
-                data[k] = v.to(device)
-            return data
-        else:
-            return data.to(device)
+        if isinstance(data, torch.Tensor):
+            return data.to(device, non_blocking=True)
+        if isinstance(data, dict):
+            return {k: self.to_device(v) for k, v in data.items()}
+        if isinstance(data, list):
+            return [self.to_device(v) for v in data]
+        if isinstance(data, tuple):
+            return tuple(self.to_device(v) for v in data)
+        if isinstance(data, np.ndarray):
+            return torch.as_tensor(data).to(device, non_blocking=True)
+        return data
 
     def fit(self, train_data, valid_data=None, verbose=True, saved=True, show_progress=False, callback_fn=None):
         if self.scheduler_config:
@@ -402,6 +404,9 @@ class Trainer(object):
         user, time_seq, history_index, positive_u, positive_i = batched_data #user.shape = (256,10) time_seq.shape = (256,10,6) 
         interaction = self.to_device(user)
         time_seq = self.to_device(time_seq)
+        # Move history_index (tuple of index tensors) to GPU to avoid CPU/GPU mismatch during masking
+        if history_index is not None:
+            history_index = self.to_device(history_index)
         if self.config['model'] == 'HLLM' or self.config['model'] == 'HLLM_V':
             if self.config['stage'] == 3:
                 scores = self.model.module.predict(interaction, time_seq, self.item_feature)
@@ -427,13 +432,24 @@ class Trainer(object):
                 for idx, items in tqdm(enumerate(item_loader), total=len(item_loader)):
                     items = self.to_device(items)
                     items = self.model(items, mode='compute_item')
-                    self.item_feature.append(items)
+                    # Ensure computed item features reside on the training device
+                    if isinstance(items, tuple):
+                        self.item_feature.append(tuple(x.to(self.device) for x in items))
+                    else:
+                        self.item_feature.append(items.to(self.device))
                 if isinstance(items, tuple):
-                    self.item_feature = torch.cat([x[0] for x in self.item_feature]), torch.cat([x[1] for x in self.item_feature])
+                    self.item_feature = torch.cat([x[0] for x in self.item_feature]).to(self.device), torch.cat([x[1] for x in self.item_feature]).to(self.device)
                 else:
-                    self.item_feature = torch.cat(self.item_feature)
+                    self.item_feature = torch.cat(self.item_feature).to(self.device)
+                # Stage 3 precision cast; handle tuple or tensor safely
                 if self.config['stage'] == 3:
-                    self.item_feature = self.item_feature.bfloat16()
+                    if isinstance(self.item_feature, tuple):
+                        self.item_feature = (
+                            self.item_feature[0].bfloat16(),
+                            self.item_feature[1].bfloat16(),
+                        )
+                    else:
+                        self.item_feature = self.item_feature.bfloat16()
         else:
             with torch.no_grad():
                 self.item_feature = self.model.module.compute_item_all()

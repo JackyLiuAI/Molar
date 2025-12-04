@@ -12,10 +12,10 @@ MAX_ITEM_LIST_LENGTH: 50
 MAX_TEXT_LENGTH: 64
 
 data_path: ../dataset/                       # dataset path
-dataset: Pixel200K                        # dataset name
-test_dataset: Pixel200K                        # dataset name
+dataset: Pixel50K                        # dataset name
+test_dataset: Pixel50K                        # dataset name
 
-text_path: text_path # Use absolute path
+text_path: /DATA/home/ljq/Projects/Molar/dataset/50k/item_info.csv # Use absolute path
 text_keys: ['title', 'tag', 'description']
 
 item_prompt: 'Compress the following sentence into embedding: '
@@ -35,9 +35,9 @@ scheduler_args: {
 
 # eval settings
 eval_batch_size: 256
-topk: [5,10,50,200]
+topk: [10,20,50]
 metrics: ['Recall', 'NDCG']
-valid_metric: NDCG@200
+valid_metric: NDCG@50
 metric_decimal_place: 7
 eval_step: 1 
 stopping_step: 5

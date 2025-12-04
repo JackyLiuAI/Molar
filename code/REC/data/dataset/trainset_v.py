@@ -208,13 +208,12 @@ class TextSEQTrainDataset(Dataset):
                     if value and str(value) != 'nan':
                         text_str += f"\n{key}: {value}"
 
-            if len(item_i):#暂时不用图片
-                item_i['img'] = os.path.join("/home/yanruiran/workspace/lyc/HLLM/information", self.config['dataset'], f"{item}.jpg")
-                # 如果图片不存在, 则不使用图片
-                # print("hahaha",item_i['img'])
-                if not os.path.exists(item_i['img']):
+            if len(item_i):
+                img_path = os.path.join("/DATA/home/ljq/Projects/Molar/dataset/", self.config['dataset'], f"{item}.jpg")
+                if os.path.exists(img_path):
+                    item_i['img'] = img_path
+                else:
                     item_i['img'] = None
-                    # logger.info(f"{item_i['img']} not exists")
             text_str = ""
             if len(item_i):
                 #text_str = f"{self.item_prompt}"
